@@ -1,65 +1,79 @@
-import Image from "next/image";
+"use client";
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
 export default function Home() {
+  const [user, setUser] = useState(null);
+  const [runs, setRuns] = useState([]);
+  
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data?.user));
+    fetchRuns();
+  }, []);
+
+  async function fetchRuns() {
+    const { data } = await supabase.from('speedruns').select('*').order('created_at', { ascending: false });
+    if (data) setRuns(data);
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!user) return alert("You must sign in first!");
+
+    const payload = {
+      title: e.target.title.value,
+      category: e.target.category.value,
+      description: e.target.description.value,
+      version: e.target.version.value,
+      email: user.email || 'User'
+    };
+
+    const res = await fetch('/api/submitRun', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    
+    const result = await res.json();
+    if (result.error) alert(result.error); 
+    else {
+      alert("Submitted!");
+      fetchRuns(); 
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
+      <div>
+        <h2 className="text-3xl font-bold mb-4 text-red-500">Speedruns & Discoveries</h2>
+        <div className="flex flex-col gap-4 overflow-y-auto max-h-[500px]">
+          {runs.map(run => (
+             // You need to setup database connection first to see data!
+            <div key={run.id} className="bg-gray-800 p-4 rounded shadow border-l-4 border-blue-500">
+              <h3 className="font-bold text-xl">{run.title}</h3>
+              <p className="text-sm text-gray-400">Category: {run.category} | V: {run.version}</p>
+              <p className="mt-2 text-gray-300 bg-gray-900 p-2 rounded">{run.description}</p>
+            </div>
+          ))}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </div>
+
+      <div className="bg-gray-800 p-6 border-2 border-gray-700 rounded-lg h-min">
+        <h3 className="text-xl font-bold mb-4">Post a run or hack</h3>
+        {!user ? <p className="text-red-500 font-bold mb-2 p-4 bg-red-900/30 rounded border border-red-500 text-center">Please Sign in via Discord in Navbar!</p> : null}
+        
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <input name="title" required placeholder="Run / Glitch Title" className="p-3 bg-gray-900 rounded border border-gray-600 text-white" disabled={!user}/>
+          <select name="category" className="p-3 bg-gray-900 rounded border border-gray-600 text-white" disabled={!user}>
+             <option value="Any%">Any% Speedrun</option>
+             <option value="Glitch">Out of Bounds / Glitch</option>
+          </select>
+          <input name="version" required placeholder="Build/Patch Version (e.g. Steam V1.3)" className="p-3 bg-gray-900 rounded border border-gray-600 text-white" disabled={!user} />
+          <textarea name="description" required placeholder="Description..." className="p-3 bg-gray-900 rounded border border-gray-600 h-32 text-white" disabled={!user}></textarea>
+          <button className={`p-3 rounded font-bold ${user ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`} disabled={!user}>
+            Submit Data Securely
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
